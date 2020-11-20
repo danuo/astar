@@ -191,7 +191,7 @@ class Renderer():
             side = [XA, YA, XA, YB]
         result = line_intersect(X1, Y1, X2, Y2, *side)
         if result:
-            check_box(X1, Y1, X2, Y2, XA+CELLWIDTH, YA, XB+CELLWIDTH, YB):
+            check_box(X1, Y1, X2, Y2, XA+CELLWIDTH, YA, XB+CELLWIDTH, YB)
         else:
             result = line_intersect(X1, Y1, X2, Y2, *side)
                 
@@ -296,13 +296,15 @@ class MazeSolver():
     def calculate_g_cost(self, x, y):
         # g_cost: current path length
         if not self.current_node:
+            current_cost = 0
             dx, dy = abs(x-self.start[0]), abs(x-self.start[1])
         else:
+            current_cost = self.current_node.g_cost
             dx, dy = abs(x-self.current_node.x), abs(y-self.current_node.y)
         n_nondiag = abs(dx-dy)
         n_diag = max(dx, dy) - n_nondiag
         # 14 for diagonal traversing, 10 for hor. / vert.
-        return 14*n_diag + 10*n_nondiag
+        return current_cost + 10*n_nondiag + 14*n_diag
 
     def calculate_h_cost(self, x, y):
         # h_cost: heuristic cost, distance from node to end node
