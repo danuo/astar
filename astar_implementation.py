@@ -145,35 +145,29 @@ class Renderer():
             if event.type == pygame.MOUSEBUTTONUP:
                 self.interaction_mode = 'none'
                 self.X1, self.Y1 = None, None
-                # todo reset pathfinder
                 self.mazesolver.reset_solver()
                 self.mazesolver.find_path()
                 print('reset')
-                # start pathfinder?
             if event.type == pygame.MOUSEMOTION:
                 # if hasattr(event, 'pos'):
                 X2, Y2 = event.pos
+                # interpolate mouse movement
                 if self.interaction_mode in ['block', 'free']:
                     self.interpolate_mouse_movement(
                         self.X1, self.Y1, X2, Y2)
-                self.X1 = X2
-                self.Y1 = Y2
-                # todo interpolation stuff
-                # get four points
-                    # self.apply_env_modification(X2, Y2, self.interaction_mode)
-
-
+                self.X1, self.Y1 = X2, Y2
             # check for closing the window
             if event.type == pygame.QUIT:
                 self.run = False
                 
 
     def check_if_mouse_leaves_cell(self, X1, Y1, X2, Y2, x_cell, y_cell):
+        print(X1, Y1, X2, Y2, x_cell, y_cell)
         # X1, Y1, X2, Y2: mouse movement in pixel coordinates
         # x_cell, y_celL: current cell in cell coordinates
         # XA, YA, XB, YB: cell edges in pixel coordinates
         XA, XB = x_cell * CELLWIDTH, (x_cell+1) * CELLWIDTH
-        YA, YB = x_cell * CELLWIDTH, (x_cell+1) * CELLWIDTH
+        YA, YB = y_cell * CELLWIDTH, (y_cell+1) * CELLWIDTH
 
         # get direction of mouse vector
         DX, DY = X2-X1, Y2-Y1
@@ -398,10 +392,10 @@ class MazeSolver():
 
             
     def apply_shortest_path(self):
-        print(len(self.shortest_path))
+        # print(len(self.shortest_path))
         if len(self.shortest_path) > 0:
             segment = self.shortest_path.pop()
-            print(segment)
+            # print(segment)
             x, y = segment
             self.renderer.set_state_str(x, y, 'best_path')
             return False
@@ -463,9 +457,7 @@ class MazeSolver():
             self.renderer.render_frame()
             if path_found == False:
                 path_found = self.astar_step()
-            
             if path_applied == False and path_found:
-                print('yoo')
                 path_applied = self.apply_shortest_path()
 
 
