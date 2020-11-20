@@ -86,6 +86,15 @@ class Renderer():
         self.draw_all_nodes()
         self.draw_nodes()
         
+        
+    def get_node(self, x, y):
+        for node in self.nodes_all:
+            if x == node.x:
+                if y == node.y:
+                    return node
+        raise Exception('Error: Node could not be found')
+
+    
     def draw_point(self, x=None, y=None, X=None, Y=None):
         if (x is not None) and (y is not None):
             center = ((0.5+x)*CELLWIDTH, (0.5+y)*CELLWIDTH)
@@ -94,6 +103,7 @@ class Renderer():
         radius = 3
         pygame.draw.circle(self.surface, COLOR_RED, center, radius)
     
+
     def draw_sprite(self, x, y):
         test = np.zeros((CELLWIDTH, CELLWIDTH))
         surf = pygame.surfarray.make_surface(test)
@@ -110,19 +120,13 @@ class Renderer():
         #     new_node = RendererNode(self.surface, x, y, state)
         #     self.nodes_all.append(new_node)
 
-    def get_node(self, x, y):
-        for node in self.nodes_all:
-            if x == node.x:
-                if y == node.y:
-                    return node
-        raise Exception('Error: Node could not be found')
 
     def draw_all_nodes(self):
         for node in self.nodes_all:
             node._draw()
         pygame.display.update()
 
-    # @timeit
+
     def draw_nodes(self):
         new_rects = []
         for node in self.nodes_animation:
@@ -132,8 +136,15 @@ class Renderer():
                 self.nodes_animation.remove(node)
         pygame.display.update(new_rects)
 
-    # @timeit
+
     def render_frame(self):
+        def interaction_end():
+            self.interaction_mode = 'none'
+            self.X1, self.Y1 = None, None
+            self.mazesolver.reset_solver()
+            self.mazesolver.find_path()
+            print('reset')
+
         self.draw_nodes()
         # self.clock.tick(30)
         # pygame.display.update()
@@ -141,35 +152,40 @@ class Renderer():
         MazeSolver.renderer.draw_sprite(20,20)
         for event in pygame.event.get():
             if event.type == pygame.MOUSEBUTTONDOWN:
+                print(event.button)
                 self.interaction_mode = 'block' if event.button == 1 else 'free'
+                print(self.interaction_mode)
                 self.X1, self.Y1 = event.pos
+            
             if event.type == pygame.MOUSEBUTTONUP:
-                self.interaction_mode = 'none'
-                self.X1, self.Y1 = None, None
-                self.mazesolver.reset_solver()
-                self.mazesolver.find_path()
-                print('reset')
+                interaction_end()
+
             if event.type == pygame.MOUSEMOTION:
-                # if hasattr(event, 'pos'):
                 X2, Y2 = event.pos
                 # interpolate mouse movement
                 if self.interaction_mode in ['block', 'free']:
                     self.interpolate_mouse_movement(
                         self.X1, self.Y1, X2, Y2)
                 self.X1, self.Y1 = X2, Y2
+
             # check for closing the window
             if event.type == pygame.QUIT:
                 self.run = False
                 
 
+    def interpolate_mouse_movement(self, X1, Y1, X2, Y2):
+        # X1, Y1, X2, Y2: mouse movement in pixel coordinates
+        # x1, y1: current cell in cell coordinates
+        x_cell, y_cell = X1//CELLWIDTH, Y1//CELLWIDTH
+        self.check_if_mouse_leaves_cell(X1, Y1, X2, Y2, x_cell, y_cell) 
+
+
     def check_if_mouse_leaves_cell(self, X1, Y1, X2, Y2, x_cell, y_cell):
-        print(X1, Y1, X2, Y2, x_cell, y_cell)
         # X1, Y1, X2, Y2: mouse movement in pixel coordinates
         # x_cell, y_celL: current cell in cell coordinates
         # XA, YA, XB, YB: cell edges in pixel coordinates
         XA, XB = x_cell * CELLWIDTH, (x_cell+1) * CELLWIDTH
         YA, YB = y_cell * CELLWIDTH, (y_cell+1) * CELLWIDTH
-
         # get direction of mouse vector
         DX, DY = X2-X1, Y2-Y1
         # check if mouse vector leaves left/right
@@ -181,8 +197,9 @@ class Renderer():
             x_cell_new = x_cell - 1
         result = line_intersect(X1, Y1, X2, Y2, *side)
         if result:
-            self.apply_env_modification(x_cell_new, y_cell, self.interaction_mode)
-            self.check_if_mouse_leaves_cell(X1, Y1, X2, Y2, x_cell_new, y_cell)
+            if self.mazesolver.check_cell_coords_in_bounds(x_cell_new, y_cell):
+                self.apply_env_modification(x_cell_new, y_cell, self.interaction_mode)
+                self.check_if_mouse_leaves_cell(X1, Y1, X2, Y2, x_cell_new, y_cell)
             return
         else:
             # check if mouse vector leaves top/bottom
@@ -194,16 +211,11 @@ class Renderer():
                 y_cell_new = y_cell - 1
             result = line_intersect(X1, Y1, X2, Y2, *side)
             if result:
-                self.apply_env_modification(x_cell, y_cell_new, self.interaction_mode)
-                self.check_if_mouse_leaves_cell(X1, Y1, X2, Y2, x_cell, y_cell_new)
+                if self.mazesolver.check_cell_coords_in_bounds(x_cell, y_cell_new):
+                    self.apply_env_modification(x_cell, y_cell_new, self.interaction_mode)
+                    self.check_if_mouse_leaves_cell(X1, Y1, X2, Y2, x_cell, y_cell_new)
         return
 
-    def interpolate_mouse_movement(self, X1, Y1, X2, Y2):
-        # X1, Y1, X2, Y2: mouse movement in pixel coordinates
-        # x1, y1: current cell in cell coordinates
-        x_cell, y_cell = X1//CELLWIDTH, Y1//CELLWIDTH
-        print(x_cell, y_cell)
-        self.check_if_mouse_leaves_cell(X1, Y1, X2, Y2, x_cell, y_cell) 
 
     def apply_env_modification(self, x, y, mode):
         # x: position in cell coordinates
@@ -211,7 +223,8 @@ class Renderer():
         # x, y = int(np.floor(X/CELLWIDTH)), int(np.floor(Y/CELLWIDTH))
         if mode == 'block': state_int = 0 
         if mode == 'free': state_int = 1
-        self.mazesolver.set_maze_state(x, y, 0)
+        self.mazesolver.set_maze_state(x, y, state_int)
+
 
     def set_state_str(self, x, y, state_str: str, animation=True):
         node = self.get_node(x, y)
@@ -230,6 +243,9 @@ class RendererNode():
         self.state_str = state_str
         self.animation_state = 0
         self.color1 = COLOR_WHITE
+        self.active = False
+        
+    def reset(self):
 
     def _set_state(self, state_str: str, animation=True):
         self.state_str = state_str
@@ -264,6 +280,8 @@ class MazeSolver():
         self.end = (49, 49)  # (x, y)
         self.renderer = Renderer(self, start=self.start, end=self.end)
         self.reset_solver()
+        self.x_bounds = (0, WIDTH//CELLWIDTH - 1)
+        self.y_bounds = (0, HEIGHT//CELLWIDTH - 1)
 
     def reset_solver(self):
         self.open = []
@@ -275,6 +293,7 @@ class MazeSolver():
         # state: 0=blocked, 1=free 
         self.maze[y, x] = state_int
         state_str = 'free' if state_int else 'blocked'
+        # if self.check_cell_coords_in_bounds(x, y):
         self.renderer.set_state_str(x, y, state_str)
 
     def add_node_to_open(self, node):
@@ -326,6 +345,10 @@ class MazeSolver():
         # returns the node
         min_value, index = min((value.f_cost, index) for index, value in enumerate(self.open))
         return self.open.pop(index)
+    
+    def check_cell_coords_in_bounds(self, x, y):
+        return np.all([self.x_bounds[0] <= x <= self.x_bounds[1],
+                       self.y_bounds[0] <= y <= self.y_bounds[1]])
 
     def get_node_neighbour_coords(self, x, y): # 0 ms
         # returns coords tuples (x, y) of traversable neighbours as list
@@ -341,10 +364,9 @@ class MazeSolver():
         # check if coordinates are in boundaries
         check_boundaries = [False] * len(coords_candidates_list)
         for i, coords in enumerate(coords_candidates_list):
-            x_bounds = (0, 49)  # todo : dynamic
-            y_bounds = (0, 49)
-            if np.all([x_bounds[0] <= coords[0] <= x_bounds[1],
-                       y_bounds[0] <= coords[1] <= y_bounds[1]]):
+            # x_bounds = (0, 49)  # todo : dynamic
+            # y_bounds = (0, 49)
+            if self.check_cell_coords_in_bounds(coords[0], coords[1]):
                 check_boundaries[i] = True
         zipped_list = zip(coords_candidates_list, check_boundaries)
         coords_candidates_list = [value for value, check in zipped_list if check]
@@ -393,10 +415,8 @@ class MazeSolver():
 
             
     def apply_shortest_path(self):
-        # print(len(self.shortest_path))
         if len(self.shortest_path) > 0:
             segment = self.shortest_path.pop()
-            # print(segment)
             x, y = segment
             self.renderer.set_state_str(x, y, 'best_path')
             return False
