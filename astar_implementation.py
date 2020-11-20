@@ -141,9 +141,10 @@ class Renderer():
         for event in pygame.event.get():
             if event.type == pygame.MOUSEBUTTONDOWN:
                 self.interaction_mode = 'block' if event.button == 1 else 'free'
-                X1, Y1 = event.pos
+                self.X1, self.Y1 = event.pos
             if event.type == pygame.MOUSEBUTTONUP:
                 self.interaction_mode = 'none'
+                self.X1, self.Y1 = None, None
                 # todo reset pathfinder
                 self.mazesolver.reset_solver()
                 self.mazesolver.find_path()
@@ -152,61 +153,67 @@ class Renderer():
             if event.type == pygame.MOUSEMOTION:
                 # if hasattr(event, 'pos'):
                 X2, Y2 = event.pos
-
+                if self.interaction_mode in ['block', 'free']:
+                    self.interpolate_mouse_movement(
+                        self.X1, self.Y1, X2, Y2)
+                self.X1 = X2
+                self.Y1 = Y2
                 # todo interpolation stuff
                 # get four points
-
-                if self.interaction_mode in ['block', 'free']:
-                    self.apply_env_modification(X2, Y2, self.interaction_mode)
+                    # self.apply_env_modification(X2, Y2, self.interaction_mode)
 
 
             # check for closing the window
             if event.type == pygame.QUIT:
                 self.run = False
                 
-                
 
+    def check_if_mouse_leaves_cell(self, X1, Y1, X2, Y2, x_cell, y_cell):
+        # X1, Y1, X2, Y2: mouse movement in pixel coordinates
+        # x_cell, y_celL: current cell in cell coordinates
+        # XA, YA, XB, YB: cell edges in pixel coordinates
+        XA, XB = x_cell * CELLWIDTH, (x_cell+1) * CELLWIDTH
+        YA, YB = x_cell * CELLWIDTH, (x_cell+1) * CELLWIDTH
 
-    #
-    # ────────────────────────────────────────────────────────────────
-    #   :::::: N E W A L G O : :  :   :    :     :        :          :
-    # ────────────────────────────────────────────────────────────────
-    #
-    # 1) check square x,y
-    
-    # if dx pos -> check right ( or left) 
-    #     -> add square
-    #     -> check square (x+1,y)
-    # if dy pos -> check top (or bot)
-    #     -> check square (x, y+1)
-    # return
-
-    # def check_square(self, ):
-
-    def check_box(X1, Y1, X2, Y2, XA, YA, XB, YB):
+        # get direction of mouse vector
         DX, DY = X2-X1, Y2-Y1
-        if DX >= 0:
+        # check if mouse vector leaves left/right
+        if DX >= 0: 
             side = [XB, YA, XB, YB]
-        else:
+            x_cell_new = x_cell + 1
+        else: 
             side = [XA, YA, XA, YB]
+            x_cell_new = x_cell - 1
         result = line_intersect(X1, Y1, X2, Y2, *side)
         if result:
-            check_box(X1, Y1, X2, Y2, XA+CELLWIDTH, YA, XB+CELLWIDTH, YB)
+            self.apply_env_modification(x_cell_new, y_cell, self.interaction_mode)
+            self.check_if_mouse_leaves_cell(X1, Y1, X2, Y2, x_cell_new, y_cell)
+            return
         else:
+            # check if mouse vector leaves top/bottom
+            if DY >= 0:
+                side = [XA, YB, XB, YB]
+                y_cell_new = y_cell + 1
+            else: 
+                side = [XA, YA, XB, YA]
+                y_cell_new = y_cell - 1
             result = line_intersect(X1, Y1, X2, Y2, *side)
-                
+            if result:
+                self.apply_env_modification(x_cell, y_cell_new, self.interaction_mode)
+                self.check_if_mouse_leaves_cell(X1, Y1, X2, Y2, x_cell, y_cell_new)
+        return
+
     def interpolate_mouse_movement(self, X1, Y1, X2, Y2):
-        # 
-        XA, YA = X1//CELLWIDTH, Y1//CELLWIDTH
-        XB, YB = XA + 1, YA + 1
-        self.check_box(X1, Y1, X2, Y2, XA, YA, XB, YB)
+        # X1, Y1, X2, Y2: mouse movement in pixel coordinates
+        # x1, y1: current cell in cell coordinates
+        x_cell, y_cell = X1//CELLWIDTH, Y1//CELLWIDTH
+        print(x_cell, y_cell)
+        self.check_if_mouse_leaves_cell(X1, Y1, X2, Y2, x_cell, y_cell) 
 
-        # if found -> 
-
-    def apply_env_modification(self, X, Y, mode):
+    def apply_env_modification(self, x, y, mode):
         # x: position in cell coordinates
         # X: position in pixel coordinates
-        x, y = int(np.floor(X/CELLWIDTH)), int(np.floor(Y/CELLWIDTH))
+        # x, y = int(np.floor(X/CELLWIDTH)), int(np.floor(Y/CELLWIDTH))
         if mode == 'block': state_int = 0 
         if mode == 'free': state_int = 1
         self.mazesolver.set_maze_state(x, y, 0)
@@ -424,6 +431,7 @@ class MazeSolver():
                 continue
 
             # calculate new g_cost for neighbour node
+            # todo: bug
             new_g_cost = self.calculate_g_cost(*coords)
 
             # check if node with x,y is in open -> if yes, use
