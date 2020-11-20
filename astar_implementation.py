@@ -6,7 +6,7 @@ import pygame
 WIDTH = 1000
 HEIGHT = 1000
 CELLWIDTH = 20
-RENDER_SKIP = 5
+RENDER_SKIP = 20
 ANIMATION_LENGTH = 20
 
 COLOR_BLACK = (0, 0, 0)
@@ -86,10 +86,10 @@ class Renderer():
         self.draw_nodes_all()
 
 
-    def reset_nodes(self):
+    def reset_nodes(self, animation=True):
         print('nodes_reset')
         for node in self.node_array.flat:
-            node.reset()
+            node.reset(animation=animation)
         # self.draw_all_nodes()
         # add all nodes to animation
         
@@ -118,17 +118,6 @@ class Renderer():
         surf = pygame.surfarray.make_surface(test)
         self.surface.blit(surf, (x, y))
         
-    
-    def cleanup(self):
-        pass
-        # for index, value in np.ndenumerate(self.mazesolver.maze):
-        #     y, x = index
-        #     state = 'free' if value == 1 else 'blocked'
-        #     if index == self.start: state = 'start'
-        #     if index == self.end: state = 'end'
-        #     new_node = RendererNode(self.surface, x, y, state)
-        #     self.nodes_all.append(new_node)
-
 
     def draw_nodes_all(self):
         # for node in self.nodes_all:
@@ -153,13 +142,13 @@ class Renderer():
             self.interaction_mode = 'none'
             self.X1, self.Y1 = None, None
             self.MazeSolver.reset()
-            self.MazeSolver.renderer.reset_nodes()
+            # self.MazeSolver.renderer.reset_nodes()
             self.MazeSolver.find_path()
             print('reset')
 
         self.draw_nodes_updated()
-        # self.clock.tick(30)
-        # pygame.display.update()
+        self.clock.tick(30)
+        pygame.display.update()
         MazeSolver.renderer.draw_point(X=10, Y=20)
         MazeSolver.renderer.draw_sprite(20,20)
         for event in pygame.event.get():
@@ -260,6 +249,7 @@ class RendererNode():
         self.state_str = state_str
         self.animation_state = 0
         self.color1 = COLOR_WHITE
+        self.color2 = COLOR_WHITE
         self.active = False
         self.render = True
         
@@ -268,17 +258,19 @@ class RendererNode():
         state_list = ['free', 'blocked', 'start', 'end']
         return state_list[state_int]
         
-    def reset(self):
+    def reset(self, animation=True):
+        self.color1 = self.color2
         if self.active == True:
             # do not reset this time
             self.active = False
         else:
             # get initial state
             state_int = self.MazeSolver.maze[self.y, self.x]
-            self._set_state(self.state_int_to_state_str(state_int), animation=False)
+            self._set_state(self.state_int_to_state_str(state_int), animation=animation)
             
 
     def _set_state(self, state_str: str, animation=True):
+        self.active = True
         # use set_state() of Renderer() object
         self.state_str = state_str
         if animation:
@@ -288,6 +280,7 @@ class RendererNode():
         self.render = True
 
     def draw(self, color=None):
+        self.animation_state += 1/ANIMATION_LENGTH
         color_dict = dict(free = COLOR_WHITE,
                           blocked = COLOR_BLACK,
                           start = COLOR_GREEN,
@@ -299,7 +292,6 @@ class RendererNode():
         self.color2 = color_dict[self.state_str]
         if not color:
             color = get_color(self.color1, self.color2, self.animation_state)
-        self.animation_state += 1/ANIMATION_LENGTH
         return pygame.draw.rect(self.surface, color, (self.x*CELLWIDTH, self.y*CELLWIDTH, CELLWIDTH, CELLWIDTH))
 
 
@@ -468,6 +460,7 @@ class MazeSolver():
             self.renderer.set_state_str(x, y, 'best_path')
             return False
         else: # when path is completely applied
+            self.renderer.reset_nodes()
             return True
         
 
@@ -480,7 +473,6 @@ class MazeSolver():
         if (self.current_node.x, self.current_node.y) == self.end:
             print('path has been found')
             self.export_shortest_path()
-            self.renderer.cleanup()
             return True
 
         # get neighbours of current_node
@@ -530,6 +522,8 @@ class MazeSolver():
                 path_found = self.astar_step()
             if path_applied == False and path_found:
                 path_applied = self.apply_shortest_path()
+                
+
 
 
 class Node():
