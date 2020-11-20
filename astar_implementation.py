@@ -88,7 +88,6 @@ class Renderer():
 
     def reset_nodes(self):
         print('nodes_reset')
-        print(self.MazeSolver.maze)
         for node in self.node_array.flat:
             node.reset()
         # self.draw_all_nodes()
@@ -321,8 +320,8 @@ class MazeSolver():
         self.y_bounds = (0, HEIGHT//CELLWIDTH - 1)
 
     def reset(self):
-        self.open = []
-        self.closed = []
+        self.open = set()
+        self.closed = set()
         self.add_node_to_open(self.create_node(*self.start))
         self.shortest_path=[]
         
@@ -332,12 +331,12 @@ class MazeSolver():
         self.renderer.set_state_int(x, y, state_int)
 
     def add_node_to_open(self, node):
-        self.open.append(node)
+        self.open.add(node)
         # set animation state
         self.renderer.set_state_str(node.x, node.y, 'open')
 
     def add_node_to_closed(self, node):
-        self.closed.append(node)
+        self.closed.add(node)
         # set animation state
         self.renderer.set_state_str(node.x, node.y, 'closed')
 
@@ -362,6 +361,7 @@ class MazeSolver():
         # 14 for diagonal traversing, 10 for hor. / vert.
         return current_cost + 10*n_nondiag + 14*n_diag
 
+
     def calculate_h_cost(self, x, y):
         # h_cost: heuristic cost, distance from node to end node
         if not self.current_node:
@@ -373,17 +373,29 @@ class MazeSolver():
         # 14 for diagonal traversing, 10 for hor. / vert.
         return 14*n_diag + 10*n_nondiag
 
-    # @timeit
+
     def get_node_fcost_min(self):
         # finds node with min(node.fcost) from self.open 
         # removes the node from self.open
         # returns the node
-        min_value, index = min((value.f_cost, index) for index, value in enumerate(self.open))
-        return self.open.pop(index)
+        lowest_object = None
+        lowest_value = 1e9
+        for item in self.open:
+            if item.f_cost < lowest_value:
+                lowest_object = item
+                lowest_value = item.f_cost
+            elif item.f_cost == lowest_value:
+                if item.idx < lowest_object.idx:
+                    lowest_object = item
+                    lowest_value = item.f_cost
+        self.open.remove(lowest_object)
+        return lowest_object
+    
     
     def check_cell_coords_in_bounds(self, x, y):
         return np.all([self.x_bounds[0] <= x <= self.x_bounds[1],
                        self.y_bounds[0] <= y <= self.y_bounds[1]])
+
 
     def get_node_neighbour_coords(self, x, y): # 0 ms
         # returns coords tuples (x, y) of traversable neighbours as list
