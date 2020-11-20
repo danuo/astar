@@ -60,10 +60,12 @@ def timeit(method):
 
 
 class Renderer():
-    def __init__(self, mazesolver, start=None, end=None):
+    # the renderer only handles the rendering of the path finding
+    # the path finding algorithm can function without the renderer
+    def __init__(self, MazeSolver, start=None, end=None):
         # todo: generate sprites
         self.run = True
-        self.mazesolver = mazesolver
+        self.MazeSolver = MazeSolver
         self.start = start
         self.end = end
         self.interaction_mode = 'none'
@@ -75,24 +77,27 @@ class Renderer():
 
         self.nodes_all = []
         self.nodes_animation = []
-        for index, value in np.ndenumerate(self.mazesolver.maze):
+        
+        # each node is an object, stored in an numpy array
+        self.node_array = np.empty(self.MazeSolver.maze.shape, dtype=object)
+        
+        for index, value in np.ndenumerate(self.MazeSolver.maze):
             y, x = index
-            state = 'free' if value == 1 else 'blocked'
-            if index == self.start: state = 'start'
-            if index == self.end: state = 'end'
-            new_node = RendererNode(self.surface, x, y, state)
-            self.nodes_all.append(new_node)
-            # self.nodes_animation.append(new_node)
+            node = RendererNode(self.MazeSolver, self.surface, x, y)
+            node.reset()
+            self.node_array[y, x] = node
+
         self.draw_all_nodes()
-        self.draw_nodes()
+        # self.draw_nodes()
         
         
     def get_node(self, x, y):
-        for node in self.nodes_all:
-            if x == node.x:
-                if y == node.y:
-                    return node
-        raise Exception('Error: Node could not be found')
+        return self.node_array[y,x]
+        # for node in self.nodes_all:
+            # if x == node.x:
+                # if y == node.y:
+                    # return node
+        # raise Exception('Error: Node could not be found')
 
     
     def draw_point(self, x=None, y=None, X=None, Y=None):
@@ -122,15 +127,17 @@ class Renderer():
 
 
     def draw_all_nodes(self):
-        for node in self.nodes_all:
-            node._draw()
+        # for node in self.nodes_all:
+            # node._draw()
+        for node in self.node_array.flat:
+            node.draw()
         pygame.display.update()
 
 
     def draw_nodes(self):
         new_rects = []
         for node in self.nodes_animation:
-            new_rects.append(node._draw())
+            new_rects.append(node.draw())
             if node.animation_state > 1:
                 # node.color1 = node.color2
                 self.nodes_animation.remove(node)
@@ -141,8 +148,8 @@ class Renderer():
         def interaction_end():
             self.interaction_mode = 'none'
             self.X1, self.Y1 = None, None
-            self.mazesolver.reset_solver()
-            self.mazesolver.find_path()
+            self.MazeSolver.reset_solver()
+            self.MazeSolver.find_path()
             print('reset')
 
         self.draw_nodes()
@@ -197,7 +204,7 @@ class Renderer():
             x_cell_new = x_cell - 1
         result = line_intersect(X1, Y1, X2, Y2, *side)
         if result:
-            if self.mazesolver.check_cell_coords_in_bounds(x_cell_new, y_cell):
+            if self.MazeSolver.check_cell_coords_in_bounds(x_cell_new, y_cell):
                 self.apply_env_modification(x_cell_new, y_cell, self.interaction_mode)
                 self.check_if_mouse_leaves_cell(X1, Y1, X2, Y2, x_cell_new, y_cell)
             return
@@ -211,7 +218,7 @@ class Renderer():
                 y_cell_new = y_cell - 1
             result = line_intersect(X1, Y1, X2, Y2, *side)
             if result:
-                if self.mazesolver.check_cell_coords_in_bounds(x_cell, y_cell_new):
+                if self.MazeSolver.check_cell_coords_in_bounds(x_cell, y_cell_new):
                     self.apply_env_modification(x_cell, y_cell_new, self.interaction_mode)
                     self.check_if_mouse_leaves_cell(X1, Y1, X2, Y2, x_cell, y_cell_new)
         return
@@ -223,7 +230,7 @@ class Renderer():
         # x, y = int(np.floor(X/CELLWIDTH)), int(np.floor(Y/CELLWIDTH))
         if mode == 'block': state_int = 0 
         if mode == 'free': state_int = 1
-        self.mazesolver.set_maze_state(x, y, state_int)
+        self.MazeSolver.set_maze_state(x, y, state_int)
 
 
     def set_state_str(self, x, y, state_str: str, animation=True):
@@ -236,7 +243,8 @@ class Renderer():
 
 
 class RendererNode():
-    def __init__(self, surface, x: int, y: int, state_str: str):
+    def __init__(self, MazeSolver, surface, x: int, y: int, state_str=None):
+        self.MazeSolver = MazeSolver
         self.surface = surface
         self.x = x
         self.y = y
@@ -245,14 +253,28 @@ class RendererNode():
         self.color1 = COLOR_WHITE
         self.active = False
         
+    def state_int_to_state_str(self, state_int):
+        # 0: free, 1: blocked, 2: start, 3: end
+        state_list = ['free', 'blocked', 'start', 'end']
+        return state_list[state_int]
+        
     def reset(self):
+        if self.active == True:
+            # do not reset this time
+            self.active = False
+        else:
+            # get initial state
+            state_int = self.MazeSolver.maze[self.y, self.x]
+            self._set_state(self.state_int_to_state_str(state_int))
+            
 
     def _set_state(self, state_str: str, animation=True):
+        # use set_state() of Renderer() object
         self.state_str = state_str
         if animation:
             self.animation_state = 0
 
-    def _draw(self, color=None):
+    def draw(self, color=None):
         color_dict = dict(free = COLOR_WHITE,
                           blocked = COLOR_GREY40,
                           start = COLOR_GREEN,
@@ -273,7 +295,8 @@ class MazeSolver():
         self.node_counter = 0
         self.current_node = None
 
-        # maze dict
+        # maze state_list
+        # 0: free, 1: blocked, 2: start, 3: end
         self.maze = np.ones((HEIGHT//CELLWIDTH, WIDTH//CELLWIDTH), dtype=np.bool)  # 50*50
         # self.maze[10:40, 20] = 0
         self.start = (0, 0)  # (x, y)
