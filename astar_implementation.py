@@ -75,21 +75,26 @@ class Renderer():
         self.clock = pygame.time.Clock()
         self.surface.fill(COLOR_WHITE)
 
-        self.nodes_all = []
-        self.nodes_animation = []
-        
         # each node is an object, stored in an numpy array
         self.node_array = np.empty(self.MazeSolver.maze.shape, dtype=object)
-        
         for index, value in np.ndenumerate(self.MazeSolver.maze):
             y, x = index
             node = RendererNode(self.MazeSolver, self.surface, x, y)
             node.reset()
             self.node_array[y, x] = node
 
-        self.draw_all_nodes()
-        # self.draw_nodes()
+        self.draw_nodes_all()
+
+
+    def reset_nodes(self):
+        print('nodes_reset')
+        print(self.MazeSolver.maze)
+        for node in self.node_array.flat:
+            node.reset()
+        # self.draw_all_nodes()
+        # add all nodes to animation
         
+
         
     def get_node(self, x, y):
         return self.node_array[y,x]
@@ -126,7 +131,7 @@ class Renderer():
         #     self.nodes_all.append(new_node)
 
 
-    def draw_all_nodes(self):
+    def draw_nodes_all(self):
         # for node in self.nodes_all:
             # node._draw()
         for node in self.node_array.flat:
@@ -134,13 +139,13 @@ class Renderer():
         pygame.display.update()
 
 
-    def draw_nodes(self):
+    def draw_nodes_updated(self):
         new_rects = []
-        for node in self.nodes_animation:
-            new_rects.append(node.draw())
+        for node in self.node_array.flat:
+            if node.render:
+                new_rects.append(node.draw())
             if node.animation_state > 1:
-                # node.color1 = node.color2
-                self.nodes_animation.remove(node)
+                node.render = False
         pygame.display.update(new_rects)
 
 
@@ -148,11 +153,12 @@ class Renderer():
         def interaction_end():
             self.interaction_mode = 'none'
             self.X1, self.Y1 = None, None
-            self.MazeSolver.reset_solver()
+            self.MazeSolver.reset()
+            self.MazeSolver.renderer.reset_nodes()
             self.MazeSolver.find_path()
             print('reset')
 
-        self.draw_nodes()
+        self.draw_nodes_updated()
         # self.clock.tick(30)
         # pygame.display.update()
         MazeSolver.renderer.draw_point(X=10, Y=20)
@@ -228,8 +234,8 @@ class Renderer():
         # x: position in cell coordinates
         # X: position in pixel coordinates
         # x, y = int(np.floor(X/CELLWIDTH)), int(np.floor(Y/CELLWIDTH))
-        if mode == 'block': state_int = 0 
-        if mode == 'free': state_int = 1
+        if mode == 'free': state_int = 0
+        if mode == 'block': state_int = 1 
         self.MazeSolver.set_maze_state(x, y, state_int)
 
 
@@ -237,9 +243,13 @@ class Renderer():
         node = self.get_node(x, y)
         if node.state_str not in ['start', 'end']:
             node._set_state(state_str, animation=animation)
-        if animation:
-            if node not in self.nodes_animation:
-                self.nodes_animation.append(node)
+            
+    def set_state_int(self, x, y, state_int: int, animation=True):
+        node = self.get_node(x, y)
+        state_str = node.state_int_to_state_str(state_int)
+        if node.state_str not in ['start', 'end']:
+            node._set_state(state_str, animation=animation)
+
 
 
 class RendererNode():
@@ -252,6 +262,7 @@ class RendererNode():
         self.animation_state = 0
         self.color1 = COLOR_WHITE
         self.active = False
+        self.render = True
         
     def state_int_to_state_str(self, state_int):
         # 0: free, 1: blocked, 2: start, 3: end
@@ -265,7 +276,7 @@ class RendererNode():
         else:
             # get initial state
             state_int = self.MazeSolver.maze[self.y, self.x]
-            self._set_state(self.state_int_to_state_str(state_int))
+            self._set_state(self.state_int_to_state_str(state_int), animation=False)
             
 
     def _set_state(self, state_str: str, animation=True):
@@ -273,10 +284,13 @@ class RendererNode():
         self.state_str = state_str
         if animation:
             self.animation_state = 0
+        else:
+            self.animation_state = 0.99
+        self.render = True
 
     def draw(self, color=None):
         color_dict = dict(free = COLOR_WHITE,
-                          blocked = COLOR_GREY40,
+                          blocked = COLOR_BLACK,
                           start = COLOR_GREEN,
                           end = COLOR_BLUE,
                           open = COLOR_PURPLE,
@@ -297,27 +311,25 @@ class MazeSolver():
 
         # maze state_list
         # 0: free, 1: blocked, 2: start, 3: end
-        self.maze = np.ones((HEIGHT//CELLWIDTH, WIDTH//CELLWIDTH), dtype=np.bool)  # 50*50
+        self.maze = np.zeros((HEIGHT//CELLWIDTH, WIDTH//CELLWIDTH), dtype=np.uint8)  # 50*50
         # self.maze[10:40, 20] = 0
         self.start = (0, 0)  # (x, y)
         self.end = (49, 49)  # (x, y)
         self.renderer = Renderer(self, start=self.start, end=self.end)
-        self.reset_solver()
+        self.reset()
         self.x_bounds = (0, WIDTH//CELLWIDTH - 1)
         self.y_bounds = (0, HEIGHT//CELLWIDTH - 1)
 
-    def reset_solver(self):
+    def reset(self):
         self.open = []
         self.closed = []
         self.add_node_to_open(self.create_node(*self.start))
         self.shortest_path=[]
         
     def set_maze_state(self, x, y, state_int):
-        # state: 0=blocked, 1=free 
+        # state: 0=free, 1=blocked 
         self.maze[y, x] = state_int
-        state_str = 'free' if state_int else 'blocked'
-        # if self.check_cell_coords_in_bounds(x, y):
-        self.renderer.set_state_str(x, y, state_str)
+        self.renderer.set_state_int(x, y, state_int)
 
     def add_node_to_open(self, node):
         self.open.append(node)
@@ -397,7 +409,7 @@ class MazeSolver():
         # check if coordinates are traversable
         check_traversable = [False] * len(coords_candidates_list)
         for i, coords in enumerate(coords_candidates_list):
-            if self.maze[coords[1], coords[0]]:
+            if self.maze[coords[1], coords[0]] == 0:
                 check_traversable[i] = True
         zipped_list = zip(coords_candidates_list, check_traversable)
         coords_candidates_list = [value for value, check in zipped_list if check]
