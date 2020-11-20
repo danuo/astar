@@ -6,6 +6,7 @@ import pygame
 WIDTH = 1000
 HEIGHT = 1000
 CELLWIDTH = 20
+RENDER_SKIP = 5
 ANIMATION_LENGTH = 20
 
 COLOR_BLACK = (0, 0, 0)
@@ -134,7 +135,7 @@ class Renderer():
     # @timeit
     def render_frame(self):
         self.draw_nodes()
-        self.clock.tick(30)
+        # self.clock.tick(30)
         # pygame.display.update()
         MazeSolver.renderer.draw_point(X=10, Y=20)
         MazeSolver.renderer.draw_sprite(20,20)
@@ -451,10 +452,13 @@ class MazeSolver():
         return False
     
     def find_path(self):
+        self.frame_counter = 0
         path_found = False
         path_applied = False
         while self.renderer.run:
-            self.renderer.render_frame()
+            self.frame_counter += 1
+            if self.frame_counter % RENDER_SKIP == 0:
+                self.renderer.render_frame()
             if path_found == False:
                 path_found = self.astar_step()
             if path_applied == False and path_found:
