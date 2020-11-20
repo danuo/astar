@@ -6,7 +6,7 @@ import pygame
 WIDTH = 1000
 HEIGHT = 1000
 CELLWIDTH = 20
-RENDER_SKIP = 20
+RENDER_SKIP = 30
 ANIMATION_LENGTH = 20
 
 COLOR_BLACK = (0, 0, 0)
@@ -22,14 +22,22 @@ COLOR_ORANGE = (255, 151, 5)
 def circle(x, y, r):
     xx, yy = np.meshgrid(np.arange(x), np.arange(y))
     array = (xx-x/2+0.5)**2 + (yy-y/2+0.5)**2
-    return (array > r**2).astype(np.int)
+    array4 = np.zeros((x, y, 4), dtype=np.uint8)
+    array4[:,:,3] = ((array > r**2) * 255).astype(np.int)
+    return array4
 
-def get_color(color1, color2, frac):
+# generate 10 sprites
+sprite_sizes = np.linspace(3,20,11)
+sprite_list = []
+for size in sprite_sizes:
+    sprite_list.append(circle(20, 20, size))
+
+def get_color(color0, color1, frac):
     color_return = [0] * 3
     xp = [0, 1]
     for i in range(3):
-        fp = [color1[i], color2[i]]
-        color_return[i] = np.interp(frac, xp, fp)
+        fp = [color0[i], color1[i]]
+        color_return[i] = np.interp(frac, xp, fp).astype(np.uint8)
     return color_return
 
 
@@ -74,7 +82,6 @@ class Renderer():
         self.surface = pygame.display.set_mode((WIDTH, HEIGHT))
         self.clock = pygame.time.Clock()
         self.surface.fill(COLOR_WHITE)
-
         # each node is an object, stored in an numpy array
         self.node_array = np.empty(self.MazeSolver.maze.shape, dtype=object)
         for index, value in np.ndenumerate(self.MazeSolver.maze):
@@ -82,26 +89,16 @@ class Renderer():
             node = RendererNode(self.MazeSolver, self.surface, x, y)
             node.reset()
             self.node_array[y, x] = node
-
         self.draw_nodes_all()
 
 
     def reset_nodes(self, animation=True):
-        print('nodes_reset')
         for node in self.node_array.flat:
             node.reset(animation=animation)
-        # self.draw_all_nodes()
-        # add all nodes to animation
-        
 
         
     def get_node(self, x, y):
         return self.node_array[y,x]
-        # for node in self.nodes_all:
-            # if x == node.x:
-                # if y == node.y:
-                    # return node
-        # raise Exception('Error: Node could not be found')
 
     
     def draw_point(self, x=None, y=None, X=None, Y=None):
@@ -142,7 +139,6 @@ class Renderer():
             self.interaction_mode = 'none'
             self.X1, self.Y1 = None, None
             self.MazeSolver.reset()
-            # self.MazeSolver.renderer.reset_nodes()
             self.MazeSolver.find_path()
             print('reset')
 
@@ -153,9 +149,7 @@ class Renderer():
         MazeSolver.renderer.draw_sprite(20,20)
         for event in pygame.event.get():
             if event.type == pygame.MOUSEBUTTONDOWN:
-                print(event.button)
                 self.interaction_mode = 'block' if event.button == 1 else 'free'
-                print(self.interaction_mode)
                 self.X1, self.Y1 = event.pos
             
             if event.type == pygame.MOUSEBUTTONUP:
@@ -228,16 +222,15 @@ class Renderer():
 
 
     def set_state_str(self, x, y, state_str: str, animation=True):
+        color0=COLOR_BLACK
         node = self.get_node(x, y)
         if node.state_str not in ['start', 'end']:
-            node._set_state(state_str, animation=animation)
+            node._set_state(state_str, animation=animation, color0=color0)
             
     def set_state_int(self, x, y, state_int: int, animation=True):
         node = self.get_node(x, y)
         state_str = node.state_int_to_state_str(state_int)
-        if node.state_str not in ['start', 'end']:
-            node._set_state(state_str, animation=animation)
-
+        self.set_state_str(x, y, state_str, animation=animation)
 
 
 class RendererNode():
@@ -248,8 +241,8 @@ class RendererNode():
         self.y = y
         self.state_str = state_str
         self.animation_state = 0
+        self.color0 = COLOR_WHITE
         self.color1 = COLOR_WHITE
-        self.color2 = COLOR_WHITE
         self.active = False
         self.render = True
         
@@ -259,7 +252,7 @@ class RendererNode():
         return state_list[state_int]
         
     def reset(self, animation=True):
-        self.color1 = self.color2
+        self.color0 = self.color1
         if self.active == True:
             # do not reset this time
             self.active = False
@@ -269,15 +262,16 @@ class RendererNode():
             self._set_state(self.state_int_to_state_str(state_int), animation=animation)
             
 
-    def _set_state(self, state_str: str, animation=True):
+    def _set_state(self, state_str: str, animation=True, color0=None):
         self.active = True
-        # use set_state() of Renderer() object
+        self.render = True
         self.state_str = state_str
         if animation:
             self.animation_state = 0
         else:
             self.animation_state = 0.99
-        self.render = True
+        if color0:
+            self.color0 = color0
 
     def draw(self, color=None):
         self.animation_state += 1/ANIMATION_LENGTH
@@ -289,9 +283,24 @@ class RendererNode():
                           closed = COLOR_ORANGE,
                           best_path = COLOR_GREEN,)
 
-        self.color2 = color_dict[self.state_str]
+        self.color1 = color_dict[self.state_str]
         if not color:
-            color = get_color(self.color1, self.color2, self.animation_state)
+            color = get_color(self.color0, self.color1, self.animation_state)
+        
+        
+        sprite = sprite_list[int(self.animation_state*10)]
+        surf = pygame.image.frombuffer(sprite.tobytes(), (20, 20), 'RGBA')
+        # surf = surf.convert_alpha()
+        
+        # surf = pygame.surfarray.make_surface(sprite)
+        # surf = surf.convert_alpha()
+
+        # surf.fill(color)
+
+        # surf.pixels_alpha = 
+        # surf.fill(color)
+        
+        # return self.surface.blit(surf, (self.x*CELLWIDTH, self.y*CELLWIDTH))
         return pygame.draw.rect(self.surface, color, (self.x*CELLWIDTH, self.y*CELLWIDTH, CELLWIDTH, CELLWIDTH))
 
 
@@ -420,7 +429,7 @@ class MazeSolver():
 
         return coords_candidates_list
 
-    # @timeit
+
     def find_node_in_closed(self, x, y):
         for node in self.closed:
             if node.x == x:
@@ -428,7 +437,7 @@ class MazeSolver():
                     return node
         return None
 
-    # @timeit
+
     def find_node_in_open(self, x, y):
         for node in self.open:
             if node.x == x:
@@ -485,7 +494,6 @@ class MazeSolver():
                 continue
 
             # calculate new g_cost for neighbour node
-            # todo: bug
             new_g_cost = self.calculate_g_cost(*coords)
 
             # check if node with x,y is in open -> if yes, use
@@ -516,14 +524,13 @@ class MazeSolver():
         path_applied = False
         while self.renderer.run:
             self.frame_counter += 1
-            if self.frame_counter % RENDER_SKIP == 0:
-                self.renderer.render_frame()
-            if path_found == False:
-                path_found = self.astar_step()
-            if path_applied == False and path_found:
-                path_applied = self.apply_shortest_path()
-                
-
+            self.renderer.render_frame()
+            for _ in range(RENDER_SKIP):
+                if path_found == False:
+                    path_found = self.astar_step()
+            for _ in range(2):
+                if path_applied == False and path_found:
+                    path_applied = self.apply_shortest_path()
 
 
 class Node():
@@ -563,3 +570,6 @@ class Node():
 
 MazeSolver = MazeSolver()
 MazeSolver.find_path()
+
+
+# todo: press r for reset
