@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'pathsolver.apps.ApiConfig',
+    'rest_framework',
 ]
 
 MIDDLEWARE = [
