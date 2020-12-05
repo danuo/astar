@@ -137,7 +137,6 @@ class Renderer():
 
         self.draw_nodes_updated()
         self.clock.tick(30)
-        pygame.display.update()
         for event in pygame.event.get():
             if event.type == pygame.MOUSEBUTTONDOWN:
                 self.interaction_mode = 'block' if event.button == 1 else 'free'
