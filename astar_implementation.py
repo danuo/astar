@@ -12,25 +12,44 @@ ANIMATION_LENGTH = 20
 
 # define colors for rendering
 COLOR_BLACK = (0, 0, 0)
-COLOR_WHITE = (255, 255, 255)
 COLOR_GREY40 = (40, 40, 40)
-COLOR_RED = (255, 0, 0)
-COLOR_GREEN = (0, 255, 0)
-COLOR_BLUE = (0, 0, 255)
-COLOR_PINK = (255, 0, 255)
-COLOR_PURPLE = (155, 50, 168)
-COLOR_ORANGE = (255, 151, 5)
+COLOR_WHITE = (255, 255, 255)
+COLOR_LBLUE = (60, 63, 201)
+COLOR_DBLUE = (18,0,120)
+COLOR_PURP0 = (199, 44, 186)
+COLOR_PURP1 = (157,1,145)
+COLOR_PINK = (253, 58, 105)
+
+# color animation start
+color_dict0 = dict(free = COLOR_LBLUE,
+                   blocked = COLOR_BLACK,
+                   start = COLOR_WHITE,
+                   end = COLOR_WHITE,
+                   open = COLOR_WHITE,
+                   closed = COLOR_PURP0,
+                   best_path = COLOR_WHITE,)
+
+# color animation end
+color_dict1 = dict(free = COLOR_WHITE,
+                   blocked = COLOR_GREY40,
+                   start = COLOR_PINK,
+                   end = COLOR_PINK,
+                   open = COLOR_DBLUE,
+                   closed = COLOR_PURP1,
+                   best_path = COLOR_PINK,)
 
 
-def circle(x, y, r):
-    xx, yy = np.meshgrid(np.arange(x), np.arange(y))
-    array = (xx-x/2+0.5)**2 + (yy-y/2+0.5)**2
-    array4 = np.zeros((x, y, 4), dtype=np.uint8)
-    array4[:,:,3] = ((array > r**2) * 255).astype(np.int)
-    return array4
+def get_color(string):
+    color0 = COLOR_WHITE
+    color1 = COLOR_BLACK
+    if string in color_dict0:
+        color0 = color_dict0[string]
+    if string in color_dict1:
+        color1 = color_dict1[string]
+    return color0, color1
 
 
-def get_color(color0, color1, frac):
+def interpolate_color(color0, color1, frac):
     color_return = [0] * 3
     xp = [0, 1]
     for i in range(3):
@@ -129,7 +148,8 @@ class Renderer():
 
             if event.type == pygame.MOUSEMOTION:
                 X2, Y2 = event.pos
-                # interpolate mouse movement
+                # interpolate mouse movement to effect every node on mouse
+                # movement trajectory
                 if self.interaction_mode in ['block', 'free']:
                     self.interpolate_mouse_movement(
                         self.X1, self.Y1, X2, Y2)
@@ -193,16 +213,16 @@ class Renderer():
         self.MazeSolver.set_maze_state(x, y, state_int)
 
 
-    def set_state_str(self, x, y, state_str: str, animation=True):
-        color0=COLOR_BLACK
+    def set_renderer_state_str(self, x, y, state_str: str, animation=True):
+        color0, color1 = get_color(state_str)
         node = self.get_node(x, y)
         if node.state_str not in ['start', 'end']:
-            node._set_state(state_str, animation=animation, color0=color0)
+            node._set_state(state_str, animation=animation, color0=color0, color1=color1)
             
-    def set_state_int(self, x, y, state_int: int, animation=True):
+    def set_renderer_state_int(self, x, y, state_int: int, animation=True):
         node = self.get_node(x, y)
         state_str = node.state_int_to_state_str(state_int)
-        self.set_state_str(x, y, state_str, animation=animation)
+        self.set_renderer_state_str(x, y, state_str, animation=animation)
 
 
 class RendererNode():
@@ -223,7 +243,7 @@ class RendererNode():
         # 0: free, 1: blocked, 2: start, 3: end
         state_list = ['free', 'blocked', 'start', 'end']
         return state_list[state_int]
-
+    
 
     def reset(self, animation=True):
         self.color0 = self.color1
@@ -233,10 +253,13 @@ class RendererNode():
         else:
             # get initial state
             state_int = self.MazeSolver.maze[self.y, self.x]
-            self._set_state(self.state_int_to_state_str(state_int), animation=animation)
+            state_str = self.state_int_to_state_str(state_int)
+            color0, color1 = get_color(state_str)
+            self.color1 = color1
+            self._set_state(state_str, animation=animation)
 
 
-    def _set_state(self, state_str: str, animation=True, color0=None):
+    def _set_state(self, state_str: str, animation=True, color0=None, color1=None):
         self.active = True
         self.render = True
         self.state_str = state_str
@@ -246,39 +269,34 @@ class RendererNode():
             self.animation_state = 0.99
         if color0:
             self.color0 = color0
+        if color1:
+            self.color1 = color1
 
 
     def draw(self, color=None):
         self.animation_state += 1/ANIMATION_LENGTH
-        color_dict = dict(free = COLOR_WHITE,
-                          blocked = COLOR_BLACK,
-                          start = COLOR_GREEN,
-                          end = COLOR_BLUE,
-                          open = COLOR_PURPLE,
-                          closed = COLOR_ORANGE,
-                          best_path = COLOR_GREEN,)
 
-        self.color1 = color_dict[self.state_str]
+        # self.color1 = color_dict1[self.state_str]
         if not color:
-            color = get_color(self.color0, self.color1, self.animation_state)
+            color = interpolate_color(self.color0, self.color1, self.animation_state)
         return pygame.draw.rect(self.surface, color, (self.x*CELLWIDTH, self.y*CELLWIDTH, CELLWIDTH, CELLWIDTH))
 
 
 class MazeSolver():
     def __init__(self):
+        # for unique node index
         self.node_counter = 0
         self.current_node = None
 
         # maze state_list
         # 0: free, 1: blocked, 2: start, 3: end
         self.maze = np.zeros((HEIGHT//CELLWIDTH, WIDTH//CELLWIDTH), dtype=np.uint8)  # 50*50
-        # self.maze[10:40, 20] = 0
         self.start = (0, 0)  # (x, y)
         self.end = (49, 49)  # (x, y)
-        self.renderer = Renderer(self, start=self.start, end=self.end)
-        self.reset()
         self.x_bounds = (0, WIDTH//CELLWIDTH - 1)
         self.y_bounds = (0, HEIGHT//CELLWIDTH - 1)
+        self.renderer = Renderer(self, start=self.start, end=self.end)
+        self.reset()
 
 
     def reset(self):
@@ -291,19 +309,19 @@ class MazeSolver():
     def set_maze_state(self, x, y, state_int):
         # state: 0=free, 1=blocked 
         self.maze[y, x] = state_int
-        self.renderer.set_state_int(x, y, state_int)
+        self.renderer.set_renderer_state_int(x, y, state_int)
 
 
     def add_node_to_open(self, node):
         self.open.add(node)
         # set animation state
-        self.renderer.set_state_str(node.x, node.y, 'open')
+        self.renderer.set_renderer_state_str(node.x, node.y, 'open')
 
 
     def add_node_to_closed(self, node):
         self.closed.add(node)
         # set animation state
-        self.renderer.set_state_str(node.x, node.y, 'closed')
+        self.renderer.set_renderer_state_str(node.x, node.y, 'closed')
 
 
     def create_node(self, x, y):
@@ -366,9 +384,6 @@ class MazeSolver():
 
     def get_node_neighbour_coords(self, x, y): # 0 ms
         # returns coords tuples (x, y) of traversable neighbours as list
-        #   --->
-        # |    x
-        # v y
         coords_candidates_list = []
         for x_shift in range(-1, 2):
             for y_shift in range(-1, 2):
@@ -430,10 +445,11 @@ class MazeSolver():
 
 
     def apply_shortest_path(self):
+        self.renderer.set_renderer_state_str(*self.end, 'end')
         if len(self.shortest_path) > 0:
             segment = self.shortest_path.pop()
             x, y = segment
-            self.renderer.set_state_str(x, y, 'best_path')
+            self.renderer.set_renderer_state_str(x, y, 'best_path')
             return False
         else: # when path is completely applied
             self.renderer.reset_nodes()
