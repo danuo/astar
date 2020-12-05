@@ -3,12 +3,14 @@ import numpy as np
 from numpy.ma.core import right_shift
 import pygame
 
+# define constants for rendering
 WIDTH = 1000
 HEIGHT = 1000
 CELLWIDTH = 20
 RENDER_SKIP = 30
-ANIMATION_LENGTH = 20
+ANIMATION_LENGTH = 20 
 
+# define colors for rendering
 COLOR_BLACK = (0, 0, 0)
 COLOR_WHITE = (255, 255, 255)
 COLOR_GREY40 = (40, 40, 40)
@@ -19,6 +21,7 @@ COLOR_PINK = (255, 0, 255)
 COLOR_PURPLE = (155, 50, 168)
 COLOR_ORANGE = (255, 151, 5)
 
+
 def circle(x, y, r):
     xx, yy = np.meshgrid(np.arange(x), np.arange(y))
     array = (xx-x/2+0.5)**2 + (yy-y/2+0.5)**2
@@ -26,11 +29,6 @@ def circle(x, y, r):
     array4[:,:,3] = ((array > r**2) * 255).astype(np.int)
     return array4
 
-# generate 10 sprites
-sprite_sizes = np.linspace(3,20,11)
-sprite_list = []
-for size in sprite_sizes:
-    sprite_list.append(circle(20, 20, size))
 
 def get_color(color0, color1, frac):
     color_return = [0] * 3
@@ -42,7 +40,8 @@ def get_color(color0, color1, frac):
 
 
 def line_intersect(x1, y1, x2, y2, x3, y3, x4, y4):
-    # returns a (x, y) tuple or None if there is no intersection
+    # returns (x, y) tuple if there is an intersection
+    # returns None in case of no intersection
     d = (y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1)
     if d:
         s = ((x4 - x3) * (y1 - y3) - (y4 - y3) * (x1 - x3)) / d
@@ -54,17 +53,6 @@ def line_intersect(x1, y1, x2, y2, x3, y3, x4, y4):
     x = x1 + s * (x2 - x1)
     y = y1 + s * (y2 - y1)
     return x, y
-
-
-def timeit(method):
-    def timed(*args, **kw):
-        import time
-        ts = time.time()
-        result = method(*args, **kw)
-        te = time.time()
-        print(method.__name__, (te-ts)*1000, ' ms')
-        return result
-    return timed
 
 
 class Renderer():
@@ -82,7 +70,8 @@ class Renderer():
         self.surface = pygame.display.set_mode((WIDTH, HEIGHT))
         self.clock = pygame.time.Clock()
         self.surface.fill(COLOR_WHITE)
-        # each node is an object, stored in an numpy array
+        
+        # each node is stored in an 2-d numpy array for simple referencing
         self.node_array = np.empty(self.MazeSolver.maze.shape, dtype=object)
         for index, value in np.ndenumerate(self.MazeSolver.maze):
             y, x = index
@@ -287,20 +276,6 @@ class RendererNode():
         if not color:
             color = get_color(self.color0, self.color1, self.animation_state)
         
-        
-        sprite = sprite_list[int(self.animation_state*10)]
-        surf = pygame.image.frombuffer(sprite.tobytes(), (20, 20), 'RGBA')
-        # surf = surf.convert_alpha()
-        
-        # surf = pygame.surfarray.make_surface(sprite)
-        # surf = surf.convert_alpha()
-
-        # surf.fill(color)
-
-        # surf.pixels_alpha = 
-        # surf.fill(color)
-        
-        # return self.surface.blit(surf, (self.x*CELLWIDTH, self.y*CELLWIDTH))
         return pygame.draw.rect(self.surface, color, (self.x*CELLWIDTH, self.y*CELLWIDTH, CELLWIDTH, CELLWIDTH))
 
 
