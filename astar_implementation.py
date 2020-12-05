@@ -297,26 +297,31 @@ class MazeSolver():
         self.x_bounds = (0, WIDTH//CELLWIDTH - 1)
         self.y_bounds = (0, HEIGHT//CELLWIDTH - 1)
 
+
     def reset(self):
         self.open = set()
         self.closed = set()
         self.add_node_to_open(self.create_node(*self.start))
         self.shortest_path=[]
-        
+
+
     def set_maze_state(self, x, y, state_int):
         # state: 0=free, 1=blocked 
         self.maze[y, x] = state_int
         self.renderer.set_state_int(x, y, state_int)
+
 
     def add_node_to_open(self, node):
         self.open.add(node)
         # set animation state
         self.renderer.set_state_str(node.x, node.y, 'open')
 
+
     def add_node_to_closed(self, node):
         self.closed.add(node)
         # set animation state
         self.renderer.set_state_str(node.x, node.y, 'closed')
+
 
     def create_node(self, x, y):
         # get index
@@ -325,6 +330,7 @@ class MazeSolver():
         g_cost = self.calculate_g_cost(x, y)
         h_cost = self.calculate_h_cost(x, y)
         return MazeSolverNode(x, y, idx=idx, g_cost=g_cost, h_cost=h_cost)
+
 
     def calculate_g_cost(self, x, y):
         # g_cost: current path length
@@ -368,8 +374,8 @@ class MazeSolver():
                     lowest_value = item.f_cost
         self.open.remove(lowest_object)
         return lowest_object
-    
-    
+
+
     def check_cell_coords_in_bounds(self, x, y):
         return np.all([self.x_bounds[0] <= x <= self.x_bounds[1],
                        self.y_bounds[0] <= y <= self.y_bounds[1]])
@@ -421,7 +427,8 @@ class MazeSolver():
                 if node.y == y:
                     return node
         return None
-    
+
+
     def export_shortest_path(self):
         run = True
         current_node = self.current_node
@@ -438,7 +445,7 @@ class MazeSolver():
         return_list.reverse()
         self.shortest_path = return_list
 
-            
+
     def apply_shortest_path(self):
         if len(self.shortest_path) > 0:
             segment = self.shortest_path.pop()
@@ -448,9 +455,8 @@ class MazeSolver():
         else: # when path is completely applied
             self.renderer.reset_nodes()
             return True
-        
 
-    # @timeit
+
     def astar_step(self):  # 0ms
         # solving path finding
         self.current_node = self.get_node_fcost_min()
@@ -465,17 +471,16 @@ class MazeSolver():
         neighbour_coords = self.get_node_neighbour_coords(self.current_node.x, self.current_node.y)
 
         for coords in neighbour_coords:  # for each neighbour
-            # STEP 1
-            # check if node with x,y is in closed -> if yes, skip
+            # if node (x,y) is in closed -> skip
             if self.find_node_in_closed(*coords):
                 continue
 
             # calculate new g_cost for neighbour node
             new_g_cost = self.calculate_g_cost(*coords)
 
-            # check if node with x,y is in open -> if yes, use
+            # find node (x,y) in open
             node_in_open = self.find_node_in_open(*coords)
-
+            # node is in open
             if node_in_open:  # node is in open
                 if new_g_cost < node_in_open.g_cost:
                     # execute below
@@ -483,7 +488,8 @@ class MazeSolver():
                     neighbour_node = node_in_open
                 else:
                     continue  # continue to next node
-            else:  # node is not in open
+            # node is not in open
+            else:
                 neighbour_node = self.create_node(*coords)
 
             # update g_cost of neighbour
@@ -494,7 +500,8 @@ class MazeSolver():
             if not node_in_open:  # add node to open
                 self.add_node_to_open(neighbour_node)
         return False
-    
+
+
     def find_path(self):
         self.frame_counter = 0
         path_found = False
@@ -521,25 +528,30 @@ class MazeSolverNode():
         if (g_cost is not None) and (h_cost is not None):
             self._calculate_f_cost()
         self.parent = parent
-        # g_cost: distance from starting node (not perfect)
-        # h_cost: distance from end ndoe (perfect)
+        # g_cost: distance from starting node
+        # h_cost: distance from end ndoe
         # f_cost: g_cost + h_cost
+
 
     def _set_idx(self, idx):
         self.idx = idx
 
+
     def _set_parent(self, parent):
         self.parent = parent
+
 
     def _set_g_cost(self, g_cost):
         self.g_cost = g_cost
         if self.h_cost:
             self._calculate_f_cost()
 
+
     def _set_h_cost(self, h_cost):
         self.h_cost = h_cost
         if self.g_cost:
             self._calculate_f_cost()
+
 
     def _calculate_f_cost(self):
         self.f_cost = self.g_cost + self.h_cost
