@@ -155,7 +155,7 @@ class Renderer():
             # check for closing the window
             if event.type == pygame.QUIT:
                 self.run = False
-                
+
 
     def interpolate_mouse_movement(self, X1, Y1, X2, Y2):
         # X1, Y1, X2, Y2: mouse movement in pixel coordinates
@@ -234,12 +234,14 @@ class RendererNode():
         self.color1 = COLOR_WHITE
         self.active = False
         self.render = True
-        
+
+
     def state_int_to_state_str(self, state_int):
         # 0: free, 1: blocked, 2: start, 3: end
         state_list = ['free', 'blocked', 'start', 'end']
         return state_list[state_int]
-        
+
+
     def reset(self, animation=True):
         self.color0 = self.color1
         if self.active == True:
@@ -249,7 +251,7 @@ class RendererNode():
             # get initial state
             state_int = self.MazeSolver.maze[self.y, self.x]
             self._set_state(self.state_int_to_state_str(state_int), animation=animation)
-            
+
 
     def _set_state(self, state_str: str, animation=True, color0=None):
         self.active = True
@@ -261,6 +263,7 @@ class RendererNode():
             self.animation_state = 0.99
         if color0:
             self.color0 = color0
+
 
     def draw(self, color=None):
         self.animation_state += 1/ANIMATION_LENGTH
@@ -275,7 +278,6 @@ class RendererNode():
         self.color1 = color_dict[self.state_str]
         if not color:
             color = get_color(self.color0, self.color1, self.animation_state)
-        
         return pygame.draw.rect(self.surface, color, (self.x*CELLWIDTH, self.y*CELLWIDTH, CELLWIDTH, CELLWIDTH))
 
 
@@ -322,7 +324,7 @@ class MazeSolver():
         self.node_counter += 1
         g_cost = self.calculate_g_cost(x, y)
         h_cost = self.calculate_h_cost(x, y)
-        return Node(x, y, idx=idx, g_cost=g_cost, h_cost=h_cost)
+        return MazeSolverNode(x, y, idx=idx, g_cost=g_cost, h_cost=h_cost)
 
     def calculate_g_cost(self, x, y):
         # g_cost: current path length
@@ -508,7 +510,7 @@ class MazeSolver():
                     path_applied = self.apply_shortest_path()
 
 
-class Node():
+class MazeSolverNode():
     def __init__(self, x, y, idx=None, parent=None, g_cost=None, h_cost=None):
         self.x = x
         self.y = y
