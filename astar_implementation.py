@@ -59,7 +59,6 @@ class Renderer():
     # the renderer only handles the rendering of the path finding
     # the path finding algorithm can function without the renderer
     def __init__(self, MazeSolver, start=None, end=None):
-        # todo: generate sprites
         self.run = True
         self.MazeSolver = MazeSolver
         self.start = start
@@ -89,31 +88,17 @@ class Renderer():
     def get_node(self, x, y):
         return self.node_array[y,x]
 
-    
-    def draw_point(self, x=None, y=None, X=None, Y=None):
-        if (x is not None) and (y is not None):
-            center = ((0.5+x)*CELLWIDTH, (0.5+y)*CELLWIDTH)
-        if (X is not None) and (Y is not None):
-            center = (X, Y)
-        radius = 3
-        pygame.draw.circle(self.surface, COLOR_RED, center, radius)
-    
-
-    def draw_sprite(self, x, y):
-        test = np.zeros((CELLWIDTH, CELLWIDTH))
-        surf = pygame.surfarray.make_surface(test)
-        self.surface.blit(surf, (x, y))
-        
 
     def draw_nodes_all(self):
-        # for node in self.nodes_all:
-            # node._draw()
+        # draw every node
         for node in self.node_array.flat:
             node.draw()
         pygame.display.update()
 
 
     def draw_nodes_updated(self):
+        # draw selection of nodes (faster)
+        # only nodes that need to be updated are drawn
         new_rects = []
         for node in self.node_array.flat:
             if node.render:
@@ -134,8 +119,6 @@ class Renderer():
         self.draw_nodes_updated()
         self.clock.tick(30)
         pygame.display.update()
-        MazeSolver.renderer.draw_point(X=10, Y=20)
-        MazeSolver.renderer.draw_sprite(20,20)
         for event in pygame.event.get():
             if event.type == pygame.MOUSEBUTTONDOWN:
                 self.interaction_mode = 'block' if event.button == 1 else 'free'
@@ -559,6 +542,3 @@ class MazeSolverNode():
 
 MazeSolver = MazeSolver()
 MazeSolver.find_path()
-
-
-# todo: press r for reset
