@@ -77,7 +77,7 @@ def line_intersect(x1, y1, x2, y2, x3, y3, x4, y4):
 class Renderer():
     # the renderer only handles the rendering of the path finding
     # the path finding algorithm can function without the renderer
-    def __init__(self, MazeSolver, start=None, end=None):
+    def __init__(self, MazeSolver, start=None, end=None, export_frames = None):
         self.run = True
         self.MazeSolver = MazeSolver
         self.start = start
@@ -88,6 +88,8 @@ class Renderer():
         self.surface = pygame.display.set_mode((WIDTH, HEIGHT))
         self.clock = pygame.time.Clock()
         self.surface.fill(COLOR_WHITE)
+        self.frame_counter = 0
+        self.export_frames = export_frames
         
         # each node is stored in an 2-d numpy array for simple referencing
         self.node_array = np.empty(self.MazeSolver.maze.shape, dtype=object)
@@ -137,6 +139,22 @@ class Renderer():
 
         self.draw_nodes_updated()
         self.clock.tick(30)
+        
+        # export frame as jpg
+        if self.export_frames:
+            from PIL import Image
+            self.surface = pygame.display.get_surface()
+            image3d = np.ndarray((WIDTH, HEIGHT, 3), np.uint8)
+            pygame.pixelcopy.surface_to_array(
+                image3d, self.surface)
+            image3dT = np.transpose(image3d, axes=[1, 0, 2])
+            im = Image.fromarray(image3dT)  # monochromatic image
+            imrgb = im.convert('RGB')  # color image
+            filename = str(self.frame_counter).zfill(5)+'.jpg'
+            imrgb.save(filename)
+            self.frame_counter += 1 
+        
+        # process user input
         for event in pygame.event.get():
             if event.type == pygame.MOUSEBUTTONDOWN:
                 self.interaction_mode = 'block' if event.button == 1 else 'free'
@@ -282,7 +300,7 @@ class RendererNode():
 
 
 class MazeSolver():
-    def __init__(self):
+    def __init__(self, export_frames):
         # for unique node index
         self.node_counter = 0
         self.current_node = None
@@ -294,7 +312,7 @@ class MazeSolver():
         self.end = (49, 49)  # (x, y)
         self.x_bounds = (0, WIDTH//CELLWIDTH - 1)
         self.y_bounds = (0, HEIGHT//CELLWIDTH - 1)
-        self.renderer = Renderer(self, start=self.start, end=self.end)
+        self.renderer = Renderer(self, start=self.start, end=self.end, export_frames=export_frames)
         self.reset()
 
 
@@ -555,5 +573,5 @@ class MazeSolverNode():
         self.f_cost = self.g_cost + self.h_cost
 
 
-MazeSolver = MazeSolver()
+MazeSolver = MazeSolver(export_frames = False)
 MazeSolver.find_path()
